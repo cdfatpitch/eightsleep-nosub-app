@@ -1,51 +1,25 @@
-# Eight Sleep Control App
+# Eight Sleep On/Off Automator
 
-This WebApp is an alternative interface to control any Eight Sleep mattress. It gives the user the ability to schedule the temperature throughout the night without the need for an Eight Sleep subscription. This is achieved by not using Eight Sleep's "Smart Scheduling" feature, but instead running a recurring script every 30 minutes to adjust the temperature based on the schedule. If you share your mattress, both of you will be able to log in to your accounts and control your side of the mattress.
+This web app now does one job: turn your Eight Sleep automation **off** at a set time each morning and **on** at a set time each night. No temperature schedules, no continuous enforcement—manual changes during the day are left alone.
 
 <img src="eightsleep-nosub-app.png" alt="Eight Sleep No-Subscription App" width="500">
 
-## How to use this app yourself
+## Quick start (self-host)
 
-In the following, I will explain how to self-host this webapp on Vercel so that you can control it from anywhere. The setup will not generate any costs. It should take about 15 minutes to complete, **no coding skills required**.
+1. Clone or deploy this repo as a Next.js app.
+2. Set env vars: `CRON_SECRET` (random string), `JWT_SECRET` (random string), `APPROVED_EMAILS` (comma separated).
+3. Edit `config/onoff-config.json` to set your local 24h times (e.g., `{"off_time":"07:00","on_time":"21:00","timezone":"America/New_York"}`).
+4. Log in to the web UI with an approved email to store your Eight Sleep token (email/password stays the same).
+5. Run the on/off service locally (Raspberry Pi/Linux-friendly):
 
-1. Set up a (free) GitHub Account
-2. Set up a (free) Vercel Account using your GitHub Account as the Login Method
-3. On this GitHub Page, click the "Fork" Button to make a copy of this repository, and follow the steps, renaming the project to whatever you want.
-4. Go to your Vercel Dashboard and create a new Project
-5. You are now in the process of creating a new project on Vercel.
-    - In "Import Git Repository" select your forked project
-    - At "Configure Project" select the "Environment Variables" Section and create the three needed Environment Variables (`CRON_SECRET`, `JWT_SECRET`, `APPROVED_EMAILS`) and set the two Secrets to a random string of your choice. [E.g. use this site](https://it-tools.tech/token-generator). Save the **CRON_SECRET**, you will need it in a moment. 
-    - Set APPROVED_EMAILS to a comma-separated list of emails that are allowed to log in to the app. This is so that no one except you (and potentially your partner) can log in to the app.
-    - Continue and the project will be built. **The first build will fail, which is expected**.
-    - Click "Go to Project"
-6. Two more settings in Vercel
-    - In the project, click the "Settings" Tab
-    - In the "General" tab under "Build & Development Settings" override the "Build Command" to `npm run build && npm run db:push` and **press the save button**.
-    - In the "Deployment Protection" Tab, disable "Vercel Authentication" at the very top.
-7. Add database to project
-    - In the project, click the "Storage" Tab
-    - Click "Create Database"
-    - Select "Postgres", then "accept", then "create", then "connect" (all defaults are fine in between)
-8. Rebuild project
-    - In the project, click the "Deployments" Tab.
-    - Select the 3 dots next to the previously failed build and click "Redeploy"
-9. Test the app
-    - Go to the main "Project" Tab
-    - On the top right click "Visit"
-    - Welcome to your new App! Save the URL, we will need it in a second. Also save it as a bookmark for future use.
-    - Try to log in to the app with your Eight Sleep Login. This will work now.
-    - Important: **Set up a Temperature profile now!** or the next step will fail. You can change it later.
-10. Activate the recurring Update of the Mattress
-    - Go to [cron-job.org](https://cron-job.org/en/) and set up a free account
-    - Create a new "Cron Job"
-    - Title can be anything
-    - URL: `https://YOUR_VERCEL_URL/api/temperatureCron` e.g. `https://eightsleep-nosub-app-efwfwfwf-aerotows-projects.vercel.app/api/temperatureCron`
-    - Set it to every 30 minutes
-    - Under the "Advanced" Tab add a "Header"
-        - Key: `Authorization`
-        - Value: `Bearer YOUR_CRON_SECRET` (note the space after Bearer, include the word Bearer and the space!)
-    - Click "TEST RUN", then "START TEST RUN" and make sure that the "TEST RUN STATUS" is "200 OK"
-    - Click "Save"
+   ```bash
+   node scripts/onoff-service.js
+   ```
+
+   - It checks the config every minute and calls `api/temperatureCron` to flip automation at the exact times.
+   - Point `SERVICE_URL` env to your deployed URL if not running next to the app (default `http://localhost:3000/api/temperatureCron`).
+
+6. Alternative: call `https://YOUR_HOST/api/temperatureCron` twice a day from any scheduler (include header `Authorization: Bearer CRON_SECRET` and query `?action=off` or `?action=on`).
 
 
 Enjoy! That's it!

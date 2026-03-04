@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { db } from "~/server/db";
-import { users, userTemperatureProfile } from "~/server/db/schema";
+import { users } from "~/server/db/schema";
 import { cookies } from "next/headers";
 import {
   authenticate,
@@ -11,7 +11,6 @@ import {
 import { eq } from "drizzle-orm";
 import { type Token } from "~/server/eight/types";
 import { TRPCError } from "@trpc/server";
-import { adjustTemperature } from "~/app/api/temperatureCron/route";
 import jwt from "jsonwebtoken";
 
 class DatabaseError extends Error {
@@ -189,124 +188,6 @@ export const userRouter = createTRPCRouter({
         message: "An unexpected error occurred during logout.",
       });
     }
-  }),
-
-  getUserTemperatureProfile: publicProcedure.query(async ({ ctx }) => {
-    try {
-      const decoded = await checkAuthCookie(ctx.headers);
-
-      const profile = await db.query.userTemperatureProfile.findFirst({
-        where: eq(userTemperatureProfile.email, decoded.email),
-      });
-
-      if (!profile) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Temperature profile not found for this user.",
-        });
-      }
-
-      return profile;
-    } catch (error) {
-      console.error("Error fetching user temperature profile:", error);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message:
-          "An unexpected error occurred while fetching the temperature profile.",
-      });
-    }
-  }),
-
-  updateUserTemperatureProfile: publicProcedure
-    .input(
-      z.object({
-        bedTime: z.string().time(),
-        wakeupTime: z.string().time(),
-        initialSleepLevel: z.number().int().min(-100).max(100),
-        midStageSleepLevel: z.number().int().min(-100).max(100),
-        finalSleepLevel: z.number().int().min(-100).max(100),
-        timezoneTZ: z.string().max(50),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const decoded = await checkAuthCookie(ctx.headers);
-        const updatedProfile = {
-          email: decoded.email,
-          bedTime: input.bedTime,
-          wakeupTime: input.wakeupTime,
-          initialSleepLevel: input.initialSleepLevel,
-          midStageSleepLevel: input.midStageSleepLevel,
-          finalSleepLevel: input.finalSleepLevel,
-          timezoneTZ: input.timezoneTZ,
-          updatedAt: new Date(),
-        };
-        console.log("Updated profile:", updatedProfile);
-
-        await db
-          .insert(userTemperatureProfile)
-          .values(updatedProfile)
-          .onConflictDoUpdate({
-            target: userTemperatureProfile.email,
-            set: {
-              bedTime: input.bedTime,
-              wakeupTime: input.wakeupTime,
-              initialSleepLevel: input.initialSleepLevel,
-              midStageSleepLevel: input.midStageSleepLevel,
-              finalSleepLevel: input.finalSleepLevel,
-              timezoneTZ: input.timezoneTZ,
-              updatedAt: new Date(),
-            },
-          })
-          .execute();
-
-        await adjustTemperature();
-
-        return { success: true };
-      } catch (error) {
-        console.error("Error updating user temperature profile:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message:
-            "An unexpected error occurred while updating the temperature profile.",
-        });
-      }
-    }),
-
-  deleteUserTemperatureProfile: publicProcedure.mutation(async ({ ctx }) => {
-    try {
-      const decoded = await checkAuthCookie(ctx.headers);
-      const email = decoded.email;
-
-      // Delete user temperature profile
-      const result = await db
-        .delete(userTemperatureProfile)
-        .where(eq(userTemperatureProfile.email, email))
-        .execute();
-
-      if (result.rowCount === 0) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Temperature profile not found for this user.",
-        });
-      }
-
-      return {
-        success: true,
-        message: "User temperature profile deleted successfully",
-      };
-    } catch (error) {
-      console.error("Error deleting user temperature profile:", error);
-      if (error instanceof TRPCError) {
-        throw error;
-      }
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message:
-          "An unexpected error occurred while deleting the user temperature profile.",
-      });
-    }
-  }),
 });
 
 async function authenticateUser(email: string, password: string) {
